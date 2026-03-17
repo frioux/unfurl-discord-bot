@@ -125,9 +125,10 @@ export async function handleInteraction(
       return;
     }
 
-    const lines = all.map(
-      (r) => `\`${r.source_domain}\` → \`${r.target_domain}\` (added by ${r.added_by_name})`
-    );
+    const lines = all.map((r) => {
+      const base = `\`${r.source_domain}\` → \`${r.target_domain}\` (added by ${r.added_by_name})`;
+      return r.message_link ? `${base} — ${r.message_link}` : base;
+    });
     await interaction.reply(lines.join("\n"));
   }
 }

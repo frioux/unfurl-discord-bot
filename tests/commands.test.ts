@@ -154,6 +154,21 @@ describe("handleInteraction", () => {
       );
     });
 
+    it("includes message link when available", async () => {
+      addReplacement(db, {
+        sourceDomain: "x.com",
+        targetDomain: "girlcockx.com",
+        addedById: "123",
+        addedByName: "testuser",
+        messageLink: "https://discord.com/channels/1/2/3",
+      });
+      const interaction = mockInteraction({ commandName: "unfurl-list" });
+      await handleInteraction(interaction, db);
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.stringContaining("https://discord.com/channels/1/2/3")
+      );
+    });
+
     it("reports when no replacements exist", async () => {
       const interaction = mockInteraction({ commandName: "unfurl-list" });
       await handleInteraction(interaction, db);
