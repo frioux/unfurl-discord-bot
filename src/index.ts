@@ -23,7 +23,12 @@ const client = new Client({
 
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
-  await registerCommands(token, readyClient.user.id);
+  try {
+    await registerCommands(token, readyClient.user.id);
+  } catch (err) {
+    console.error("Failed to register commands:", err);
+    process.exit(1);
+  }
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -63,4 +68,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-client.login(token);
+client.login(token).catch((err) => {
+  console.error("Failed to login:", err);
+  process.exit(1);
+});
