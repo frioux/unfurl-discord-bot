@@ -39,6 +39,7 @@ client.on(Events.MessageCreate, async (message) => {
 
   if (!message.guildId) return;
 
+  let sentAny = false;
   for (const url of urls) {
     try {
       const parsed = new URL(url);
@@ -47,10 +48,19 @@ client.on(Events.MessageCreate, async (message) => {
         const replaced = replaceUrl(url, rule.source_domain, rule.target_domain);
         if (replaced) {
           await message.channel.send(replaced);
+          sentAny = true;
         }
       }
     } catch (err) {
       console.error("Failed to process URL:", err);
+    }
+  }
+
+  if (sentAny) {
+    try {
+      await message.suppressEmbeds(true);
+    } catch (err) {
+      console.error("Failed to suppress embeds:", err);
     }
   }
 });
