@@ -8,7 +8,7 @@ function mockInteraction(overrides: {
   options?: Record<string, string>;
   userId?: string;
   username?: string;
-  guildId?: string;
+  guildId?: string | null;
   channelId?: string;
 }) {
   const replies: { content: string; ephemeral?: boolean }[] = [];
@@ -22,7 +22,7 @@ function mockInteraction(overrides: {
       id: overrides.userId ?? "123",
       username: overrides.username ?? "testuser",
     },
-    guildId: overrides.guildId ?? "guild1",
+    guildId: overrides.guildId === undefined ? "guild1" : overrides.guildId,
     channelId: overrides.channelId ?? "chan1",
     id: "interaction1",
     replied: false,
@@ -45,6 +45,17 @@ describe("handleInteraction", () => {
     db = createDb(":memory:");
   });
 
+  it("rejects commands outside a guild", async () => {
+    const interaction = mockInteraction({
+      commandName: "unfurl-list",
+      guildId: null,
+    });
+    await handleInteraction(interaction, db);
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ ephemeral: true })
+    );
+  });
+
   describe("unfurl-add", () => {
     it("adds a new replacement", async () => {
       const interaction = mockInteraction({
@@ -57,8 +68,9 @@ describe("handleInteraction", () => {
       );
     });
 
-    it("rejects duplicate source_domain", async () => {
+    it("rejects duplicate source_domain in same guild", async () => {
       addReplacement(db, {
+        guildId: "guild1",
         sourceDomain: "x.com",
         targetDomain: "girlcockx.com",
         addedById: "123",
@@ -79,6 +91,7 @@ describe("handleInteraction", () => {
   describe("unfurl-update", () => {
     it("updates an existing replacement", async () => {
       addReplacement(db, {
+        guildId: "guild1",
         sourceDomain: "x.com",
         targetDomain: "girlcockx.com",
         addedById: "123",
@@ -110,6 +123,7 @@ describe("handleInteraction", () => {
   describe("unfurl-delete", () => {
     it("deletes an existing replacement", async () => {
       addReplacement(db, {
+        guildId: "guild1",
         sourceDomain: "x.com",
         targetDomain: "girlcockx.com",
         addedById: "123",
@@ -141,6 +155,7 @@ describe("handleInteraction", () => {
   describe("unfurl-list", () => {
     it("lists all replacements", async () => {
       addReplacement(db, {
+        guildId: "guild1",
         sourceDomain: "x.com",
         targetDomain: "girlcockx.com",
         addedById: "123",
@@ -156,6 +171,7 @@ describe("handleInteraction", () => {
 
     it("includes message link when available", async () => {
       addReplacement(db, {
+        guildId: "guild1",
         sourceDomain: "x.com",
         targetDomain: "girlcockx.com",
         addedById: "123",

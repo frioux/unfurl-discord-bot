@@ -37,10 +37,12 @@ client.on(Events.MessageCreate, async (message) => {
   const urls = extractUrls(message.content);
   if (urls.length === 0) return;
 
+  if (!message.guildId) return;
+
   for (const url of urls) {
     try {
       const parsed = new URL(url);
-      const rule = getReplacement(db, parsed.hostname);
+      const rule = getReplacement(db, message.guildId, parsed.hostname);
       if (rule) {
         const replaced = replaceUrl(url, rule.source_domain, rule.target_domain);
         if (replaced) {

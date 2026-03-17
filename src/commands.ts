@@ -62,11 +62,17 @@ export async function handleInteraction(
 ): Promise<void> {
   const { commandName } = interaction;
 
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    return;
+  }
+
   if (commandName === "unfurl-add") {
     const sourceDomain = interaction.options.getString("source_domain", true);
     const targetDomain = interaction.options.getString("target_domain", true);
 
-    const existing = getReplacement(db, sourceDomain);
+    const existing = getReplacement(db, guildId, sourceDomain);
     if (existing) {
       await interaction.reply({
         content: `\`${sourceDomain}\` already exists (→ \`${existing.target_domain}\`). Use \`/unfurl-update\` to change it.`,
@@ -76,6 +82,7 @@ export async function handleInteraction(
     }
 
     addReplacement(db, {
+      guildId,
       sourceDomain,
       targetDomain,
       addedById: interaction.user.id,
@@ -87,7 +94,7 @@ export async function handleInteraction(
     const sourceDomain = interaction.options.getString("source_domain", true);
     const targetDomain = interaction.options.getString("target_domain", true);
 
-    const existing = getReplacement(db, sourceDomain);
+    const existing = getReplacement(db, guildId, sourceDomain);
     if (!existing) {
       await interaction.reply({
         content: `\`${sourceDomain}\` doesn't exist. Use \`/unfurl-add\` to create it.`,
@@ -98,6 +105,7 @@ export async function handleInteraction(
 
     const oldTarget = existing.target_domain;
     updateReplacement(db, {
+      guildId,
       sourceDomain,
       targetDomain,
       updatedById: interaction.user.id,
@@ -108,7 +116,7 @@ export async function handleInteraction(
   } else if (commandName === "unfurl-delete") {
     const sourceDomain = interaction.options.getString("source_domain", true);
 
-    const deleted = deleteReplacement(db, sourceDomain);
+    const deleted = deleteReplacement(db, guildId, sourceDomain);
     if (!deleted) {
       await interaction.reply({
         content: `\`${sourceDomain}\` doesn't exist.`,
@@ -119,7 +127,7 @@ export async function handleInteraction(
 
     await interaction.reply(`Deleted: \`${sourceDomain}\` → \`${deleted.target_domain}\``);
   } else if (commandName === "unfurl-list") {
-    const all = getAllReplacements(db);
+    const all = getAllReplacements(db, guildId);
     if (all.length === 0) {
       await interaction.reply("No replacement rules configured.");
       return;

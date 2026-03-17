@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 
 export interface Replacement {
   id: number;
+  guild_id: string;
   source_domain: string;
   target_domain: string;
   added_by_id: string;
@@ -19,7 +20,8 @@ export function createDb(path: string): Database.Database {
   db.exec(`
     CREATE TABLE IF NOT EXISTS replacements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      source_domain TEXT UNIQUE NOT NULL,
+      guild_id TEXT NOT NULL,
+      source_domain TEXT NOT NULL,
       target_domain TEXT NOT NULL,
       added_by_id TEXT NOT NULL,
       added_by_name TEXT NOT NULL,
@@ -27,15 +29,22 @@ export function createDb(path: string): Database.Database {
       updated_by_id TEXT,
       updated_by_name TEXT,
       updated_at TEXT,
-      message_link TEXT
+      message_link TEXT,
+      UNIQUE(guild_id, source_domain)
     )
   `);
+  // Migration: add guild_id to old tables that lack it
+  const columns = db.prepare("PRAGMA table_info(replacements)").all() as { name: string }[];
+  if (!columns.some((c) => c.name === "guild_id")) {
+    db.exec("ALTER TABLE replacements ADD COLUMN guild_id TEXT NOT NULL DEFAULT ''");
+  }
   return db;
 }
 
 export function addReplacement(
   db: Database.Database,
   params: {
+    guildId: string;
     sourceDomain: string;
     targetDomain: string;
     addedById: string;
@@ -45,10 +54,11 @@ export function addReplacement(
 ): Replacement {
   const now = new Date().toISOString();
   const stmt = db.prepare(`
-    INSERT INTO replacements (source_domain, target_domain, added_by_id, added_by_name, added_at, message_link)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO replacements (guild_id, source_domain, target_domain, added_by_id, added_by_name, added_at, message_link)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   const info = stmt.run(
+    params.guildId,
     params.sourceDomain,
     params.targetDomain,
     params.addedById,
@@ -59,19 +69,20 @@ export function addReplacement(
   return db.prepare("SELECT * FROM replacements WHERE id = ?").get(info.lastInsertRowid) as Replacement;
 }
 
-export function getReplacement(db: Database.Database, sourceDomain: string): Replacement | undefined {
-  return db.prepare("SELECT * FROM replacements WHERE source_domain = ?").get(sourceDomain) as
+export function getReplacement(db: Database.Database, guildId: string, sourceDomain: string): Replacement | undefined {
+  return db.prepare("SELECT * FROM replacements WHERE guild_id = ? AND source_domain = ?").get(guildId, sourceDomain) as
     | Replacement
     | undefined;
 }
 
-export function getAllReplacements(db: Database.Database): Replacement[] {
-  return db.prepare("SELECT * FROM replacements ORDER BY source_domain").all() as Replacement[];
+export function getAllReplacements(db: Database.Database, guildId: string): Replacement[] {
+  return db.prepare("SELECT * FROM replacements WHERE guild_id = ? ORDER BY source_domain").all(guildId) as Replacement[];
 }
 
 export function updateReplacement(
   db: Database.Database,
   params: {
+    guildId: string;
     sourceDomain: string;
     targetDomain: string;
     updatedById: string;
@@ -79,28 +90,29 @@ export function updateReplacement(
     messageLink: string | null;
   }
 ): Replacement | undefined {
-  const existing = getReplacement(db, params.sourceDomain);
+  const existing = getReplacement(db, params.guildId, params.sourceDomain);
   if (!existing) return undefined;
 
   const now = new Date().toISOString();
   db.prepare(`
     UPDATE replacements
     SET target_domain = ?, updated_by_id = ?, updated_by_name = ?, updated_at = ?, message_link = ?
-    WHERE source_domain = ?
+    WHERE guild_id = ? AND source_domain = ?
   `).run(
     params.targetDomain,
     params.updatedById,
     params.updatedByName,
     now,
     params.messageLink,
+    params.guildId,
     params.sourceDomain
   );
-  return getReplacement(db, params.sourceDomain);
+  return getReplacement(db, params.guildId, params.sourceDomain);
 }
 
-export function deleteReplacement(db: Database.Database, sourceDomain: string): Replacement | undefined {
-  const existing = getReplacement(db, sourceDomain);
+export function deleteReplacement(db: Database.Database, guildId: string, sourceDomain: string): Replacement | undefined {
+  const existing = getReplacement(db, guildId, sourceDomain);
   if (!existing) return undefined;
-  db.prepare("DELETE FROM replacements WHERE source_domain = ?").run(sourceDomain);
+  db.prepare("DELETE FROM replacements WHERE guild_id = ? AND source_domain = ?").run(guildId, sourceDomain);
   return existing;
 }
