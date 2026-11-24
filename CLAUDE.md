@@ -32,4 +32,11 @@ Environment variables via `.env` (see `.env.example`):
 - `DISCORD_TOKEN` (required)
 - `DATABASE_PATH` (defaults to `./unfurl.db`)
 
-The bot requires the **Message Content** privileged intent enabled in the Discord Developer Portal, and the invite URL needs `bot` + `applications.commands` scopes with `View Channels`, `Send Messages`, and `Read Message History` permissions.
+The bot requires the **Message Content** privileged intent enabled in the Discord Developer Portal, and the invite URL needs `bot` + `applications.commands` scopes with `View Channels`, `Send Messages`, `Read Message History`, and `Manage Messages` permissions. `Manage Messages` is needed to suppress embeds on the original message; channel permission overrides that deny it to `@everyone` also strip it from the bot unless the bot's role gets an explicit allow on that channel/category (symptom: `Failed to suppress embeds: DiscordAPIError[50013]: Missing Permissions` in the logs).
+
+## Deployment
+
+Production runs on the Raspberry Pi, reachable as `ssh pi@raspberrypi` (Tailscale; SSH as `frew` is refused by tailnet policy). The checkout is `/home/pi/unfurl-discordbot`, run by the systemd unit `unfurl-discordbot.service` (`npx tsx src/index.ts`, `Restart=always`). There is no git on the Pi.
+
+- Logs: `ssh pi@raspberrypi 'journalctl -u unfurl-discordbot --no-pager -n 200'`
+- Restart: `ssh pi@raspberrypi 'sudo systemctl restart unfurl-discordbot'`
