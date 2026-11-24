@@ -40,3 +40,6 @@ Production runs on the Raspberry Pi, reachable as `ssh pi@raspberrypi` (Tailscal
 
 - Logs: `ssh pi@raspberrypi 'journalctl -u unfurl-discordbot --no-pager -n 200'`
 - Restart: `ssh pi@raspberrypi 'sudo systemctl restart unfurl-discordbot'`
+- Deploy: copy changed files over, e.g. `scp src/index.ts pi@raspberrypi:unfurl-discordbot/src/`, then restart. If dependencies change, run `npm ci` on the Pi too.
+
+The Pi is wired (eth0); Wi-Fi is disabled via `dtoverlay=disable-wifi` in `/boot/config.txt` because the unused wlan0 flapped constantly and coincided with Discord interactions timing out.
