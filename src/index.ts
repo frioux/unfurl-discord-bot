@@ -70,14 +70,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     await handleInteraction(interaction, db);
   } catch (err) {
-    console.error("Command error:", err);
+    const ageMs = Date.now() - interaction.createdTimestamp;
+    console.error(`Command error (/${interaction.commandName}, interaction age ${ageMs}ms):`, err);
     const reply = { content: "An error occurred.", ephemeral: true };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(reply);
-    } else {
-      await interaction.reply(reply);
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply);
+      } else {
+        await interaction.reply(reply);
+      }
+    } catch (replyErr) {
+      console.error("Failed to send error reply:", replyErr);
     }
   }
+});
+
+client.on(Events.Error, (err) => {
+  console.error("Client error:", err);
 });
 
 client.login(token).catch((err) => {
