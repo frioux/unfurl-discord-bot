@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import Database from "better-sqlite3";
-import { createDb, addReplacement } from "../src/db.js";
-import { handleInteraction } from "../src/commands.js";
+import { describe, it, beforeEach, mock } from "node:test";
+import assert from "node:assert/strict";
+import { MessageFlags } from "discord.js";
+import type { DatabaseSync } from "node:sqlite";
+import { createDb, addReplacement } from "../src/db.ts";
+import { handleInteraction } from "../src/commands.ts";
 
 function mockInteraction(overrides: {
   commandName: string;
@@ -11,7 +13,7 @@ function mockInteraction(overrides: {
   guildId?: string | null;
   channelId?: string;
 }) {
-  const replies: { content: string; ephemeral?: boolean }[] = [];
+  const replies: { content: string; flags?: number }[] = [];
   return {
     commandName: overrides.commandName,
     options: {
@@ -27,7 +29,7 @@ function mockInteraction(overrides: {
     id: "interaction1",
     replied: false,
     deferred: false,
-    reply: vi.fn(async (content: string | { content: string; ephemeral?: boolean }) => {
+    reply: mock.fn(async (content: string | { content: string; flags?: number }) => {
       if (typeof content === "string") {
         replies.push({ content });
       } else {
@@ -38,8 +40,19 @@ function mockInteraction(overrides: {
   } as any;
 }
 
+function firstReplyArg(interaction: any): any {
+  assert.equal(interaction.reply.mock.callCount(), 1);
+  return interaction.reply.mock.calls[0].arguments[0];
+}
+
+function assertEphemeralReply(interaction: any): void {
+  const arg = firstReplyArg(interaction);
+  assert.equal(typeof arg, "object");
+  assert.equal(arg.flags, MessageFlags.Ephemeral);
+}
+
 describe("handleInteraction", () => {
-  let db: Database.Database;
+  let db: DatabaseSync;
 
   beforeEach(() => {
     db = createDb(":memory:");
@@ -51,9 +64,7 @@ describe("handleInteraction", () => {
       guildId: null,
     });
     await handleInteraction(interaction, db);
-    expect(interaction.reply).toHaveBeenCalledWith(
-      expect.objectContaining({ ephemeral: true })
-    );
+    assertEphemeralReply(interaction);
   });
 
   describe("unfurl-add", () => {
@@ -63,9 +74,7 @@ describe("handleInteraction", () => {
         options: { source_domain: "x.com", target_domain: "girlcockx.com" },
       });
       await handleInteraction(interaction, db);
-      expect(interaction.reply).toHaveBeenCalledWith(
-        "Added: `x.com` → `girlcockx.com`"
-      );
+      assert.equal(firstReplyArg(interaction), "Added: `x.com` → `girlcockx.com`");
     });
 
     it("rejects duplicate source_domain in same guild", async () => {
@@ -82,9 +91,7 @@ describe("handleInteraction", () => {
         options: { source_domain: "x.com", target_domain: "other.com" },
       });
       await handleInteraction(interaction, db);
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({ ephemeral: true })
-      );
+      assertEphemeralReply(interaction);
     });
   });
 
@@ -103,9 +110,7 @@ describe("handleInteraction", () => {
         options: { source_domain: "x.com", target_domain: "newdomain.com" },
       });
       await handleInteraction(interaction, db);
-      expect(interaction.reply).toHaveBeenCalledWith(
-        "Updated: `x.com` → `newdomain.com` (was `girlcockx.com`)"
-      );
+      assert.equal(firstReplyArg(interaction), "Updated: `x.com` → `newdomain.com` (was `girlcockx.com`)");
     });
 
     it("rejects non-existent source_domain", async () => {
@@ -114,9 +119,7 @@ describe("handleInteraction", () => {
         options: { source_domain: "nope.com", target_domain: "new.com" },
       });
       await handleInteraction(interaction, db);
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({ ephemeral: true })
-      );
+      assertEphemeralReply(interaction);
     });
   });
 
@@ -135,9 +138,7 @@ describe("handleInteraction", () => {
         options: { source_domain: "x.com" },
       });
       await handleInteraction(interaction, db);
-      expect(interaction.reply).toHaveBeenCalledWith(
-        "Deleted: `x.com` → `girlcockx.com`"
-      );
+      assert.equal(firstReplyArg(interaction), "Deleted: `x.com` → `girlcockx.com`");
     });
 
     it("rejects non-existent source_domain", async () => {
@@ -146,9 +147,7 @@ describe("handleInteraction", () => {
         options: { source_domain: "nope.com" },
       });
       await handleInteraction(interaction, db);
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({ ephemeral: true })
-      );
+      assertEphemeralReply(interaction);
     });
   });
 
@@ -164,9 +163,7 @@ describe("handleInteraction", () => {
       });
       const interaction = mockInteraction({ commandName: "unfurl-list" });
       await handleInteraction(interaction, db);
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.stringContaining("x.com")
-      );
+      assert.ok(firstReplyArg(interaction).includes("x.com"));
     });
 
     it("includes message link when available", async () => {
@@ -180,17 +177,13 @@ describe("handleInteraction", () => {
       });
       const interaction = mockInteraction({ commandName: "unfurl-list" });
       await handleInteraction(interaction, db);
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.stringContaining("https://discord.com/channels/1/2/3")
-      );
+      assert.ok(firstReplyArg(interaction).includes("https://discord.com/channels/1/2/3"));
     });
 
     it("reports when no replacements exist", async () => {
       const interaction = mockInteraction({ commandName: "unfurl-list" });
       await handleInteraction(interaction, db);
-      expect(interaction.reply).toHaveBeenCalledWith(
-        "No replacement rules configured."
-      );
+      assert.equal(firstReplyArg(interaction), "No replacement rules configured.");
     });
   });
 });

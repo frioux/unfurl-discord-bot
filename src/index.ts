@@ -1,8 +1,7 @@
-import "dotenv/config";
-import { Client, Events, GatewayIntentBits } from "discord.js";
-import { createDb, getReplacement } from "./db.js";
-import { extractUrls, replaceUrl } from "./unfurl.js";
-import { registerCommands, handleInteraction } from "./commands.js";
+import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
+import { createDb, getReplacement } from "./db.ts";
+import { extractUrls, replaceUrl } from "./unfurl.ts";
+import { registerCommands, handleInteraction } from "./commands.ts";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -72,7 +71,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } catch (err) {
     const ageMs = Date.now() - interaction.createdTimestamp;
     console.error(`Command error (/${interaction.commandName}, interaction age ${ageMs}ms):`, err);
-    const reply = { content: "An error occurred.", ephemeral: true };
+    const reply = { content: "An error occurred.", flags: MessageFlags.Ephemeral } as const;
     try {
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(reply);

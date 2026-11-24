@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { createDb, addReplacement, getReplacement, getAllReplacements, updateReplacement, deleteReplacement } from "../src/db.js";
-import Database from "better-sqlite3";
+import { describe, it, beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import { createDb, addReplacement, getReplacement, getAllReplacements, updateReplacement, deleteReplacement } from "../src/db.ts";
+import type { DatabaseSync } from "node:sqlite";
 
 describe("db", () => {
-  let db: Database.Database;
+  let db: DatabaseSync;
 
   beforeEach(() => {
     db = createDb(":memory:");
@@ -14,7 +15,7 @@ describe("db", () => {
       const tables = db
         .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='replacements'")
         .all();
-      expect(tables).toHaveLength(1);
+      assert.equal(tables.length, 1);
     });
   });
 
@@ -28,13 +29,13 @@ describe("db", () => {
         addedByName: "testuser",
         messageLink: "https://discord.com/channels/1/2/3",
       });
-      expect(result.guild_id).toBe("guild1");
-      expect(result.source_domain).toBe("www.instagram.com");
-      expect(result.target_domain).toBe("vxinstagram.com");
-      expect(result.added_by_id).toBe("123");
-      expect(result.added_by_name).toBe("testuser");
-      expect(result.added_at).toBeTruthy();
-      expect(result.message_link).toBe("https://discord.com/channels/1/2/3");
+      assert.equal(result.guild_id, "guild1");
+      assert.equal(result.source_domain, "www.instagram.com");
+      assert.equal(result.target_domain, "vxinstagram.com");
+      assert.equal(result.added_by_id, "123");
+      assert.equal(result.added_by_name, "testuser");
+      assert.ok(result.added_at);
+      assert.equal(result.message_link, "https://discord.com/channels/1/2/3");
     });
 
     it("throws on duplicate source_domain in same guild", () => {
@@ -46,7 +47,7 @@ describe("db", () => {
         addedByName: "testuser",
         messageLink: null,
       });
-      expect(() =>
+      assert.throws(() =>
         addReplacement(db, {
           guildId: "guild1",
           sourceDomain: "x.com",
@@ -55,7 +56,7 @@ describe("db", () => {
           addedByName: "otheruser",
           messageLink: null,
         })
-      ).toThrow();
+      );
     });
 
     it("allows same source_domain in different guilds", () => {
@@ -75,8 +76,8 @@ describe("db", () => {
         addedByName: "otheruser",
         messageLink: null,
       });
-      expect(result.guild_id).toBe("guild2");
-      expect(result.target_domain).toBe("other.com");
+      assert.equal(result.guild_id, "guild2");
+      assert.equal(result.target_domain, "other.com");
     });
   });
 
@@ -91,13 +92,13 @@ describe("db", () => {
         messageLink: null,
       });
       const result = getReplacement(db, "guild1", "x.com");
-      expect(result).not.toBeUndefined();
-      expect(result!.target_domain).toBe("girlcockx.com");
+      assert.notEqual(result, undefined);
+      assert.equal(result!.target_domain, "girlcockx.com");
     });
 
     it("returns undefined for non-existent domain", () => {
       const result = getReplacement(db, "guild1", "nonexistent.com");
-      expect(result).toBeUndefined();
+      assert.equal(result, undefined);
     });
 
     it("does not return replacements from other guilds", () => {
@@ -110,7 +111,7 @@ describe("db", () => {
         messageLink: null,
       });
       const result = getReplacement(db, "guild2", "x.com");
-      expect(result).toBeUndefined();
+      assert.equal(result, undefined);
     });
   });
 
@@ -141,12 +142,12 @@ describe("db", () => {
         messageLink: null,
       });
       const results = getAllReplacements(db, "guild1");
-      expect(results).toHaveLength(2);
+      assert.equal(results.length, 2);
     });
 
     it("returns empty array when no replacements exist", () => {
       const results = getAllReplacements(db, "guild1");
-      expect(results).toHaveLength(0);
+      assert.equal(results.length, 0);
     });
   });
 
@@ -168,11 +169,11 @@ describe("db", () => {
         updatedByName: "updater",
         messageLink: "https://discord.com/channels/1/2/4",
       });
-      expect(result).not.toBeUndefined();
-      expect(result!.target_domain).toBe("newdomain.com");
-      expect(result!.updated_by_id).toBe("456");
-      expect(result!.updated_by_name).toBe("updater");
-      expect(result!.updated_at).toBeTruthy();
+      assert.notEqual(result, undefined);
+      assert.equal(result!.target_domain, "newdomain.com");
+      assert.equal(result!.updated_by_id, "456");
+      assert.equal(result!.updated_by_name, "updater");
+      assert.ok(result!.updated_at);
     });
 
     it("returns undefined for non-existent domain", () => {
@@ -184,7 +185,7 @@ describe("db", () => {
         updatedByName: "user",
         messageLink: null,
       });
-      expect(result).toBeUndefined();
+      assert.equal(result, undefined);
     });
   });
 
@@ -199,14 +200,14 @@ describe("db", () => {
         messageLink: null,
       });
       const result = deleteReplacement(db, "guild1", "x.com");
-      expect(result).not.toBeUndefined();
-      expect(result!.source_domain).toBe("x.com");
-      expect(getReplacement(db, "guild1", "x.com")).toBeUndefined();
+      assert.notEqual(result, undefined);
+      assert.equal(result!.source_domain, "x.com");
+      assert.equal(getReplacement(db, "guild1", "x.com"), undefined);
     });
 
     it("returns undefined for non-existent domain", () => {
       const result = deleteReplacement(db, "guild1", "nonexistent.com");
-      expect(result).toBeUndefined();
+      assert.equal(result, undefined);
     });
   });
 });

@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 
 export interface Replacement {
   id: number;
@@ -14,9 +14,14 @@ export interface Replacement {
   message_link: string | null;
 }
 
-export function createDb(path: string): Database.Database {
-  const db = new Database(path);
-  db.pragma("journal_mode = WAL");
+// node:sqlite returns null-prototype row objects; copy into plain objects.
+function toReplacement(row: unknown): Replacement | undefined {
+  return row ? ({ ...(row as object) } as Replacement) : undefined;
+}
+
+export function createDb(path: string): DatabaseSync {
+  const db = new DatabaseSync(path);
+  db.exec("PRAGMA journal_mode = WAL");
   db.exec(`
     CREATE TABLE IF NOT EXISTS replacements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +39,7 @@ export function createDb(path: string): Database.Database {
     )
   `);
   // Migration: add guild_id to old tables that lack it
-  const columns = db.prepare("PRAGMA table_info(replacements)").all() as { name: string }[];
+  const columns = db.prepare("PRAGMA table_info(replacements)").all() as unknown as { name: string }[];
   if (!columns.some((c) => c.name === "guild_id")) {
     db.exec("ALTER TABLE replacements ADD COLUMN guild_id TEXT NOT NULL DEFAULT ''");
   }
@@ -42,7 +47,7 @@ export function createDb(path: string): Database.Database {
 }
 
 export function addReplacement(
-  db: Database.Database,
+  db: DatabaseSync,
   params: {
     guildId: string;
     sourceDomain: string;
@@ -66,21 +71,24 @@ export function addReplacement(
     now,
     params.messageLink
   );
-  return db.prepare("SELECT * FROM replacements WHERE id = ?").get(info.lastInsertRowid) as Replacement;
+  return toReplacement(db.prepare("SELECT * FROM replacements WHERE id = ?").get(info.lastInsertRowid))!;
 }
 
-export function getReplacement(db: Database.Database, guildId: string, sourceDomain: string): Replacement | undefined {
-  return db.prepare("SELECT * FROM replacements WHERE guild_id = ? AND source_domain = ?").get(guildId, sourceDomain) as
-    | Replacement
-    | undefined;
+export function getReplacement(db: DatabaseSync, guildId: string, sourceDomain: string): Replacement | undefined {
+  return toReplacement(
+    db.prepare("SELECT * FROM replacements WHERE guild_id = ? AND source_domain = ?").get(guildId, sourceDomain)
+  );
 }
 
-export function getAllReplacements(db: Database.Database, guildId: string): Replacement[] {
-  return db.prepare("SELECT * FROM replacements WHERE guild_id = ? ORDER BY source_domain").all(guildId) as Replacement[];
+export function getAllReplacements(db: DatabaseSync, guildId: string): Replacement[] {
+  return db
+    .prepare("SELECT * FROM replacements WHERE guild_id = ? ORDER BY source_domain")
+    .all(guildId)
+    .map((row) => toReplacement(row)!);
 }
 
 export function updateReplacement(
-  db: Database.Database,
+  db: DatabaseSync,
   params: {
     guildId: string;
     sourceDomain: string;
@@ -110,7 +118,7 @@ export function updateReplacement(
   return getReplacement(db, params.guildId, params.sourceDomain);
 }
 
-export function deleteReplacement(db: Database.Database, guildId: string, sourceDomain: string): Replacement | undefined {
+export function deleteReplacement(db: DatabaseSync, guildId: string, sourceDomain: string): Replacement | undefined {
   const existing = getReplacement(db, guildId, sourceDomain);
   if (!existing) return undefined;
   db.prepare("DELETE FROM replacements WHERE guild_id = ? AND source_domain = ?").run(guildId, sourceDomain);

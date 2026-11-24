@@ -4,12 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-- `npm start` — run the bot (uses `tsx`, no build step)
-- `npm test` — run all tests
+- `npm start` — run the bot (Node runs the TypeScript directly via native type stripping; loads `.env` if present; no build step). Requires Node >=22.18.
+- `npm test` — run all tests (`node:test`)
 - `npm run test:watch` — run tests in watch mode
-- `npx vitest run tests/db.test.ts` — run a single test file
-- `npx vitest run tests/db.test.ts -t "creates the replacements table"` — run a single test by name
-- `npx tsc --noEmit` — type-check without emitting
+- `node --test --disable-warning=ExperimentalWarning tests/db.test.ts` — run a single test file
+- `node --test --test-name-pattern="creates the replacements table" --disable-warning=ExperimentalWarning tests/db.test.ts` — run a single test by name
+- `npm run typecheck` (`tsc --noEmit`) — type-check without emitting
+
+Source is run as TypeScript directly, so relative imports must use `.ts` extensions, use `import type` for type-only imports, and avoid non-erasable syntax (enums, parameter properties, namespaces).
 
 ## Architecture
 
@@ -19,12 +21,12 @@ Four modules with a one-directional dependency graph:
 
 - **`src/index.ts`** — entry point. Creates Discord client, wires events (`MessageCreate` → unfurl, `InteractionCreate` → commands), registers slash commands on ready. Imports from all other modules.
 - **`src/commands.ts`** — slash command builders and `handleInteraction` handler. Four commands: `/unfurl-add`, `/unfurl-update`, `/unfurl-delete`, `/unfurl-list`. Takes `Database` as a parameter (dependency injection). Imports from `db.ts`.
-- **`src/db.ts`** — SQLite layer. `createDb` initializes schema, exports CRUD functions (`addReplacement`, `getReplacement`, `getAllReplacements`, `updateReplacement`, `deleteReplacement`). All functions take `Database` as first argument. Uses WAL mode.
+- **`src/db.ts`** — SQLite layer. `createDb` initializes schema, exports CRUD functions (`addReplacement`, `getReplacement`, `getAllReplacements`, `updateReplacement`, `deleteReplacement`). Uses built-in `node:sqlite` (`DatabaseSync`); all functions take the `DatabaseSync` as first argument. Uses WAL mode.
 - **`src/unfurl.ts`** — pure functions with zero dependencies. `extractUrls` (regex + `URL` validation) and `replaceUrl` (hostname swap preserving path/query/fragment).
 
 ## Testing
 
-Tests mirror source files 1:1 in `tests/`. Database tests use `:memory:` SQLite. Command tests use a `mockInteraction` helper that mocks Discord's `ChatInputCommandInteraction` with `vi.fn()` for the reply method, paired with real in-memory databases.
+Tests use `node:test` + `node:assert/strict` and mirror source files 1:1 in `tests/`. Database tests use `:memory:` SQLite. Command tests use a `mockInteraction` helper that mocks Discord's `ChatInputCommandInteraction` with `mock.fn()` (from `node:test`) for the reply method, paired with real in-memory databases.
 
 ## Configuration
 
@@ -36,10 +38,12 @@ The bot requires the **Message Content** privileged intent enabled in the Discor
 
 ## Deployment
 
-Production runs on the Raspberry Pi, reachable as `ssh pi@raspberrypi` (Tailscale; SSH as `frew` is refused by tailnet policy). The checkout is `/home/pi/unfurl-discordbot`, run by the systemd unit `unfurl-discordbot.service` (`npx tsx src/index.ts`, `Restart=always`). There is no git on the Pi.
+Production runs on the Raspberry Pi, reachable as `ssh pi@raspberrypi` (Tailscale; SSH as `frew` is refused by tailnet policy). The checkout is `/home/pi/unfurl-discordbot`, run by the systemd unit `unfurl-discordbot.service` (`ExecStart=/opt/node/bin/node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/index.ts`, `Restart=always`). There is no git on the Pi.
+
+Node on the Pi is the official armv7l tarball unpacked in `/opt` with `/opt/node` symlinked to the current version (use `PATH=/opt/node/bin:$PATH` for `npm`). The Pi is 32-bit ARM, and Node 22 is the last release line with armv7l builds (EOL April 2027); `/usr/local/bin/node` is an old Node 20 and is not used by the bot.
 
 - Logs: `ssh pi@raspberrypi 'journalctl -u unfurl-discordbot --no-pager -n 200'`
 - Restart: `ssh pi@raspberrypi 'sudo systemctl restart unfurl-discordbot'`
-- Deploy: copy changed files over, e.g. `scp src/index.ts pi@raspberrypi:unfurl-discordbot/src/`, then restart. If dependencies change, run `npm ci` on the Pi too.
+- Deploy: copy changed files over, e.g. `scp src/index.ts pi@raspberrypi:unfurl-discordbot/src/`, then restart. If dependencies change, copy `package*.json` and run `PATH=/opt/node/bin:$PATH npm ci --omit=dev` on the Pi too.
 
 The Pi is wired (eth0); Wi-Fi is disabled via `dtoverlay=disable-wifi` in `/boot/config.txt` because the unused wlan0 flapped constantly and coincided with Discord interactions timing out.

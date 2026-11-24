@@ -7,24 +7,23 @@
     "doc": "docs"
   },
   "scripts": {
-    "start": "tsx src/index.ts",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/index.ts",
+    "test": "node --test --disable-warning=ExperimentalWarning tests/*.test.ts",
+    "test:watch": "node --test --watch --disable-warning=ExperimentalWarning tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "better-sqlite3": "^12.8.0",
-    "discord.js": "^14.25.1",
-    "dotenv": "^17.3.1"
+    "discord.js": "^14.28.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^25.5.0",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.0"
+    "@types/node": "^22",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }

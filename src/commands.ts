@@ -1,17 +1,18 @@
 import {
   SlashCommandBuilder,
-  ChatInputCommandInteraction,
+  MessageFlags,
   REST,
   Routes,
 } from "discord.js";
-import type Database from "better-sqlite3";
+import type { ChatInputCommandInteraction } from "discord.js";
+import type { DatabaseSync } from "node:sqlite";
 import {
   addReplacement,
   getReplacement,
   getAllReplacements,
   updateReplacement,
   deleteReplacement,
-} from "./db.js";
+} from "./db.ts";
 
 export const commands = [
   new SlashCommandBuilder()
@@ -58,13 +59,13 @@ function messageLink(interaction: ChatInputCommandInteraction): string | null {
 
 export async function handleInteraction(
   interaction: ChatInputCommandInteraction,
-  db: Database.Database
+  db: DatabaseSync
 ): Promise<void> {
   const { commandName } = interaction;
 
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    await interaction.reply({ content: "This command can only be used in a server.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -76,7 +77,7 @@ export async function handleInteraction(
     if (existing) {
       await interaction.reply({
         content: `\`${sourceDomain}\` already exists (→ \`${existing.target_domain}\`). Use \`/unfurl-update\` to change it.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -98,7 +99,7 @@ export async function handleInteraction(
     if (!existing) {
       await interaction.reply({
         content: `\`${sourceDomain}\` doesn't exist. Use \`/unfurl-add\` to create it.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -120,7 +121,7 @@ export async function handleInteraction(
     if (!deleted) {
       await interaction.reply({
         content: `\`${sourceDomain}\` doesn't exist.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
